@@ -49,9 +49,9 @@ private
           ENV["RAILS_GROUPS"] ||= "assets"
           ENV["RAILS_ENV"]    ||= "production"
 
-          puts "Running: rake assets:precompile"
+          puts "Running: rake assets:precompile:primary --skip-rails-admin"
           require 'benchmark'
-          time = Benchmark.realtime { pipe("env PATH=$PATH:bin bundle exec rake assets:precompile 2>&1") }
+          time = Benchmark.realtime { pipe("env PATH=$PATH:bin bundle exec rake assets:precompile:primary --skip-rails-admin 2>&1") }
 
           if $?.success?
             log "assets_precompile", :status => "success"
