@@ -49,9 +49,13 @@ private
           ENV["RAILS_GROUPS"] ||= "assets"
           ENV["RAILS_ENV"]    ||= "production"
 
-          puts "Running: rake assets:precompile:primary --skip-rails-admin"
-          require 'benchmark'
-          time = Benchmark.realtime { pipe("env PATH=$PATH:bin bundle exec rake assets:precompile:primary --skip-rails-admin 2>&1") }
+          time = if precompiled_library_assets_are_cached?
+            puts "Library assets already compiled, preloading previous cache"
+            cache_load "public/assets"
+            precompile "assets:precompile:primary --skip-libraries"
+          else
+            precompile "assets:precompile"
+          end
 
           if $?.success?
             log "assets_precompile", :status => "success"
@@ -59,6 +63,8 @@ private
             puts "Caching assets"
             cache_store "app/assets"
             cache_store "public/assets"
+            cache_store "Gemfile.lock"
+            cache_store "config/production.rb"
           else
             log "assets_precompile", :status => "failure"
             puts "Precompiling assets failed, enabling runtime asset compilation"
@@ -91,8 +97,24 @@ private
 
   # have the assets changed since we last pre-compiled them?
   def precompiled_assets_are_cached?
-    %w(app/assets vendor/assets).any? do |directory|
-      run("diff #{directory} #{cache_base + directory} --recursive").split("\n").length.zero?
+    unchanged? %w(app/assets vendor/assets)
+  end
+
+  def precompiled_library_assets_are_cached?
+    unchanged? %w(Gemfile.lock config/production.rb)
+  end
+
+  def precompile task
+    puts "Running: rake #{task}"
+    require 'benchmark'
+    Benchmark.realtime { pipe("env PATH=$PATH:bin bundle exec rake #{task} 2>&1") }
+  end
+
+  def unchanged? directories
+    Array(directories).all? do |directory|
+      return false if run("ls #{cache_base + directory} | wc").to_i.zero?
+
+      run("diff #{directory} #{cache_base + directory} --recursive | wc ").to_i.zero?
     end
   end
 end
