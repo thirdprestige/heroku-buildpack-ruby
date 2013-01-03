@@ -49,6 +49,8 @@ private
           ENV["RAILS_GROUPS"] ||= "assets"
           ENV["RAILS_ENV"]    ||= "production"
 
+          run("mkdir vendor/.versions/; cp Gemfile.lock vendor/.versions/; cp config/production.rb vendor/.versions/")
+
           time = if precompiled_library_assets_are_cached?
             puts "Library assets already compiled, preloading previous cache"
             cache_load "public/assets"
@@ -63,8 +65,8 @@ private
             puts "Caching assets"
             cache_store "app/assets"
             cache_store "public/assets"
-            cache_store "Gemfile.lock"
-            cache_store "config/production.rb"
+            cache_store "vendor/.versions"
+            cache_store "vendor/assets"
           else
             log "assets_precompile", :status => "failure"
             puts "Precompiling assets failed, enabling runtime asset compilation"
@@ -101,7 +103,8 @@ private
   end
 
   def precompiled_library_assets_are_cached?
-    unchanged? %w(Gemfile.lock config/production.rb)
+    pipe("ls vendor/.versions")
+    unchanged? %w(vendor/.versions)
   end
 
   def precompile task
@@ -112,7 +115,7 @@ private
 
   def unchanged? directories
     Array(directories).all? do |directory|
-      return false if run("ls #{cache_base + directory} | wc").to_i.zero?
+      return false unless File.exist?(directory) && File.exist?(cache_base + directory)
 
       run("diff #{directory} #{cache_base + directory} --recursive | wc ").to_i.zero?
     end
