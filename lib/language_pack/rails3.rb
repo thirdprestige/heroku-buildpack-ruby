@@ -52,9 +52,17 @@ private
           run("mkdir vendor/.versions/; cp Gemfile.lock vendor/.versions/; cp config/production.rb vendor/.versions/")
 
           time = if precompiled_library_assets_are_cached?
-            puts "Library assets already compiled, preloading previous cache"
-            cache_load "public/assets"
-            precompile "assets:precompile:primary --skip-libraries"
+            puts "Library assets already compiled, preloaded previous cache"
+            precompile("assets:precompile:primary --skip-libraries").tap do
+              # Prepends original manifest.yml with latest manifest.yml,
+              # but strips the first line from the latest manifest.yml first (---)
+              puts "Combining manifest files from previous cache"
+              run("
+                cp #{cache_base}/public/assets/manifest.yml tmp/manifest.yml;
+                tail -n 1 public/assets/manifest.yml > tmp/manifest-2.yml;
+                cat tmp/manifest.yml tmp/manifest-2.yml > public/assets/manifest.yml
+              ")
+            end
           else
             precompile "assets:precompile"
           end
@@ -104,7 +112,7 @@ private
 
   def precompiled_library_assets_are_cached?
     pipe("ls vendor/.versions")
-    unchanged? %w(vendor/.versions)
+    unchanged?(%w(vendor/.versions)) && cache_load("public/assets") && pipe("ls public/assets | wc").to_i > 5
   end
 
   def precompile task
